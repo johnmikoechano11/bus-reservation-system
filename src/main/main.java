@@ -180,25 +180,45 @@ public class main {
 
             switch (ch) {
                 case 1:
+                    // ADD BUS: Collect all required fields from the database schema
                     System.out.print("Bus Number: ");
                     String busNum = sc.nextLine().trim();
                     System.out.print("Capacity: ");
                     int cap = Integer.parseInt(sc.nextLine().trim());
-                    db.addRecord("INSERT INTO bus(bus_number, capacity) VALUES(?,?)", busNum, cap);
+                    System.out.print("Bus Type (e.g., AC, Standard): ");
+                    String busType = sc.nextLine().trim();
+                    System.out.print("Route: ");
+                    String route = sc.nextLine().trim();
+                    System.out.print("Driver Name: ");
+                    String driverName = sc.nextLine().trim();
+                    
+                    // UPDATE INSERT QUERY: Include all columns
+                    String insertSql = "INSERT INTO bus(bus_number, capacity, bus_type, route, driver_name) VALUES(?,?,?,?,?)";
+                    db.addRecord(insertSql, busNum, cap, busType, route, driverName);
                     break;
                 case 2:
-                    String[] headersB = {"Bus ID", "Bus Number", "Capacity"};
-                    String[] colsB = {"bus_id", "bus_number", "capacity"};
+                    String[] headersB = {"Bus ID", "Bus Number", "Capacity", "Type", "Route", "Driver"};
+                    String[] colsB = {"bus_id", "bus_number", "capacity", "bus_type", "route", "driver_name"};
                     db.viewRecords("SELECT * FROM bus", headersB, colsB);
                     break;
                 case 3:
+                    // UPDATE BUS: Collect all updateable fields
                     System.out.print("Enter Bus ID to update: ");
                     int busId = Integer.parseInt(sc.nextLine().trim());
                     System.out.print("New Bus Number: ");
                     String newNum = sc.nextLine().trim();
                     System.out.print("New Capacity: ");
                     int newCap = Integer.parseInt(sc.nextLine().trim());
-                    db.updateRecord("UPDATE bus SET bus_number = ?, capacity = ? WHERE bus_id = ?", newNum, newCap, busId);
+                    System.out.print("New Bus Type (e.g., AC, Standard): ");
+                    String newType = sc.nextLine().trim();
+                    System.out.print("New Route: ");
+                    String newRoute = sc.nextLine().trim();
+                    System.out.print("New Driver Name: ");
+                    String newDriver = sc.nextLine().trim();
+                    
+                    // UPDATE QUERY: Include all fields
+                    String updateSql = "UPDATE bus SET bus_number = ?, capacity = ?, bus_type = ?, route = ?, driver_name = ? WHERE bus_id = ?";
+                    db.updateRecord(updateSql, newNum, newCap, newType, newRoute, newDriver, busId);
                     break;
                 case 4:
                     System.out.print("Enter Bus ID to delete: ");
@@ -290,9 +310,9 @@ public class main {
                 case 1:
                     System.out.print("Bus ID: ");
                     int busId = Integer.parseInt(sc.nextLine().trim());
-                    System.out.print("Departure: ");
+                    System.out.print("Departure Time (HH:MM): ");
                     String dep = sc.nextLine().trim();
-                    System.out.print("Arrival: ");
+                    System.out.print("Arrival Time (HH:MM): ");
                     String arr = sc.nextLine().trim();
                     System.out.print("Route: ");
                     String route = sc.nextLine().trim();
@@ -306,13 +326,17 @@ public class main {
                 case 3:
                     System.out.print("Enter Schedule ID to update: ");
                     int sId = Integer.parseInt(sc.nextLine().trim());
-                    System.out.print("New Departure: ");
+                    System.out.print("New Bus ID: ");
+                    int newBusId = Integer.parseInt(sc.nextLine().trim()); // Added New Bus ID
+                    System.out.print("New Departure Time (HH:MM): ");
                     String nd = sc.nextLine().trim();
-                    System.out.print("New Arrival: ");
+                    System.out.print("New Arrival Time (HH:MM): ");
                     String na = sc.nextLine().trim();
                     System.out.print("New Route: ");
                     String nr = sc.nextLine().trim();
-                    db.updateRecord("UPDATE schedule SET departure = ?, arrival = ?, route = ? WHERE schedule_id = ?", nd, na, nr, sId);
+                    
+                    // UPDATE QUERY: Included newBusId
+                    db.updateRecord("UPDATE schedule SET bus_id = ?, departure = ?, arrival = ?, route = ? WHERE schedule_id = ?", newBusId, nd, na, nr, sId);
                     break;
                 case 4:
                     System.out.print("Enter Schedule ID to delete: ");

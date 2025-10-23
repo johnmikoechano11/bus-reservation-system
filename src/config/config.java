@@ -21,24 +21,25 @@ public class config {
     }
 
     //-----------------------------------------------
+    // HELPER - SET PREPARED STATEMENT VALUES
+    //-----------------------------------------------
+    // Replaced overly complex logic with simple setObject for all types
+    private void setPreparedStatementValues(PreparedStatement pstmt, Object... values) throws SQLException {
+        for (int i = 0; i < values.length; i++) {
+            // Using setObject allows the JDBC driver to determine the best type for the database
+            pstmt.setObject(i + 1, values[i]);
+        }
+    }
+
+    //-----------------------------------------------
     // ADD RECORD (Dynamic Insert)
     //-----------------------------------------------
     public void addRecord(String sql, Object... values) {
         try (Connection conn = config.connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            for (int i = 0; i < values.length; i++) {
-                if (values[i] instanceof Integer) pstmt.setInt(i + 1, (Integer) values[i]);
-                else if (values[i] instanceof Double) pstmt.setDouble(i + 1, (Double) values[i]);
-                else if (values[i] instanceof Float) pstmt.setFloat(i + 1, (Float) values[i]);
-                else if (values[i] instanceof Long) pstmt.setLong(i + 1, (Long) values[i]);
-                else if (values[i] instanceof Boolean) pstmt.setBoolean(i + 1, (Boolean) values[i]);
-                else if (values[i] instanceof java.util.Date)
-                    pstmt.setDate(i + 1, new java.sql.Date(((java.util.Date) values[i]).getTime()));
-                else if (values[i] instanceof java.sql.Date) pstmt.setDate(i + 1, (java.sql.Date) values[i]);
-                else if (values[i] instanceof java.sql.Timestamp) pstmt.setTimestamp(i + 1, (java.sql.Timestamp) values[i]);
-                else pstmt.setString(i + 1, values[i].toString());
-            }
+            // Use the simplified helper method
+            setPreparedStatementValues(pstmt, values);
 
             pstmt.executeUpdate();
             System.out.println("Record added successfully!");
@@ -54,18 +55,8 @@ public class config {
         try (Connection conn = config.connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            for (int i = 0; i < values.length; i++) {
-                if (values[i] instanceof Integer) pstmt.setInt(i + 1, (Integer) values[i]);
-                else if (values[i] instanceof Double) pstmt.setDouble(i + 1, (Double) values[i]);
-                else if (values[i] instanceof Float) pstmt.setFloat(i + 1, (Float) values[i]);
-                else if (values[i] instanceof Long) pstmt.setLong(i + 1, (Long) values[i]);
-                else if (values[i] instanceof Boolean) pstmt.setBoolean(i + 1, (Boolean) values[i]);
-                else if (values[i] instanceof java.util.Date)
-                    pstmt.setDate(i + 1, new java.sql.Date(((java.util.Date) values[i]).getTime()));
-                else if (values[i] instanceof java.sql.Date) pstmt.setDate(i + 1, (java.sql.Date) values[i]);
-                else if (values[i] instanceof java.sql.Timestamp) pstmt.setTimestamp(i + 1, (java.sql.Timestamp) values[i]);
-                else pstmt.setString(i + 1, values[i].toString());
-            }
+            // Use the simplified helper method
+            setPreparedStatementValues(pstmt, values);
 
             pstmt.executeUpdate();
             System.out.println("Record updated successfully!");
@@ -81,9 +72,9 @@ public class config {
         try (Connection conn = config.connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
+            // Also uses setObject for flexibility
             for (int i = 0; i < values.length; i++) {
-                if (values[i] instanceof Integer) pstmt.setInt(i + 1, (Integer) values[i]);
-                else pstmt.setString(i + 1, values[i].toString());
+                 pstmt.setObject(i + 1, values[i]);
             }
 
             pstmt.executeUpdate();
@@ -130,24 +121,6 @@ public class config {
     }
 
     //-----------------------------------------------
-    // HELPER - SET PREPARED STATEMENT VALUES
-    //-----------------------------------------------
-    private void setPreparedStatementValues(PreparedStatement pstmt, Object... values) throws SQLException {
-        for (int i = 0; i < values.length; i++) {
-            if (values[i] instanceof Integer) pstmt.setInt(i + 1, (Integer) values[i]);
-            else if (values[i] instanceof Double) pstmt.setDouble(i + 1, (Double) values[i]);
-            else if (values[i] instanceof Float) pstmt.setFloat(i + 1, (Float) values[i]);
-            else if (values[i] instanceof Long) pstmt.setLong(i + 1, (Long) values[i]);
-            else if (values[i] instanceof Boolean) pstmt.setBoolean(i + 1, (Boolean) values[i]);
-            else if (values[i] instanceof java.util.Date)
-                pstmt.setDate(i + 1, new java.sql.Date(((java.util.Date) values[i]).getTime()));
-            else if (values[i] instanceof java.sql.Date) pstmt.setDate(i + 1, (java.sql.Date) values[i]);
-            else if (values[i] instanceof java.sql.Timestamp) pstmt.setTimestamp(i + 1, (java.sql.Timestamp) values[i]);
-            else pstmt.setString(i + 1, values[i].toString());
-        }
-    }
-
-    //-----------------------------------------------
     // GET SINGLE VALUE
     //-----------------------------------------------
     public double getSingleValue(String sql, Object... params) {
@@ -173,6 +146,7 @@ public class config {
         try (Connection conn = connectDB();
              PreparedStatement pstmt = conn.prepareStatement(query, PreparedStatement.RETURN_GENERATED_KEYS)) {
 
+            // Use setObject for flexibility
             for (int i = 0; i < params.length; i++) {
                 pstmt.setObject(i + 1, params[i]);
             }
@@ -199,6 +173,7 @@ public class config {
         try (Connection conn = config.connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sqlQuery)) {
 
+            // Use setObject for flexibility
             for (int i = 0; i < values.length; i++) {
                 pstmt.setObject(i + 1, values[i]);
             }
