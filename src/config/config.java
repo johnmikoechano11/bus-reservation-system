@@ -11,8 +11,8 @@ public class config {
     public static Connection connectDB() {
         Connection con = null;
         try {
-            Class.forName("org.sqlite.JDBC"); // Load the SQLite JDBC driver
-            con = DriverManager.getConnection("jdbc:sqlite:busDB.db"); // Establish connection
+            Class.forName("org.sqlite.JDBC"); // Load SQLite JDBC
+            con = DriverManager.getConnection("jdbc:sqlite:busDB.db"); // Connect to DB
             System.out.println("Connection Successful");
         } catch (ClassNotFoundException | SQLException e) {
             System.out.println("Connection Failed: " + e);
@@ -23,24 +23,20 @@ public class config {
     //-----------------------------------------------
     // HELPER - SET PREPARED STATEMENT VALUES
     //-----------------------------------------------
-    // Replaced overly complex logic with simple setObject for all types
     private void setPreparedStatementValues(PreparedStatement pstmt, Object... values) throws SQLException {
         for (int i = 0; i < values.length; i++) {
-            // Using setObject allows the JDBC driver to determine the best type for the database
             pstmt.setObject(i + 1, values[i]);
         }
     }
 
     //-----------------------------------------------
-    // ADD RECORD (Dynamic Insert)
+    // ADD RECORD
     //-----------------------------------------------
     public void addRecord(String sql, Object... values) {
-        try (Connection conn = config.connectDB();
+        try (Connection conn = connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            // Use the simplified helper method
             setPreparedStatementValues(pstmt, values);
-
             pstmt.executeUpdate();
             System.out.println("Record added successfully!");
         } catch (SQLException e) {
@@ -49,15 +45,13 @@ public class config {
     }
 
     //-----------------------------------------------
-    // UPDATE RECORD (Dynamic Update)
+    // UPDATE RECORD
     //-----------------------------------------------
     public void updateRecord(String sql, Object... values) {
-        try (Connection conn = config.connectDB();
+        try (Connection conn = connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            // Use the simplified helper method
             setPreparedStatementValues(pstmt, values);
-
             pstmt.executeUpdate();
             System.out.println("Record updated successfully!");
         } catch (SQLException e) {
@@ -66,17 +60,13 @@ public class config {
     }
 
     //-----------------------------------------------
-    // DELETE RECORD (Dynamic Delete)
+    // DELETE RECORD
     //-----------------------------------------------
     public void deleteRecord(String sql, Object... values) {
-        try (Connection conn = config.connectDB();
+        try (Connection conn = connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            // Also uses setObject for flexibility
-            for (int i = 0; i < values.length; i++) {
-                 pstmt.setObject(i + 1, values[i]);
-            }
-
+            setPreparedStatementValues(pstmt, values);
             pstmt.executeUpdate();
             System.out.println("Record deleted successfully!");
         } catch (SQLException e) {
@@ -85,7 +75,7 @@ public class config {
     }
 
     //-----------------------------------------------
-    // VIEW RECORDS (Dynamic Table Viewer)
+    // VIEW RECORDS WITHOUT PARAMETERS
     //-----------------------------------------------
     public void viewRecords(String sqlQuery, String[] columnHeaders, String[] columnNames) {
         if (columnHeaders.length != columnNames.length) {
@@ -93,9 +83,9 @@ public class config {
             return;
         }
 
-        try (Connection conn = config.connectDB();
-             PreparedStatement pstmt = conn.prepareStatement(sqlQuery);
-             ResultSet rs = pstmt.executeQuery()) {
+        try (Connection conn = connectDB();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sqlQuery)) {
 
             StringBuilder headerLine = new StringBuilder();
             headerLine.append("--------------------------------------------------------------------------------\n| ");
@@ -121,59 +111,55 @@ public class config {
     }
 
     //-----------------------------------------------
-    // GET SINGLE VALUE
+    // VIEW RECORDS WITH PARAMETERS
     //-----------------------------------------------
-    public double getSingleValue(String sql, Object... params) {
-        double result = 0.0;
-        try (Connection conn = connectDB();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            setPreparedStatementValues(pstmt, params);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) result = rs.getDouble(1);
-
-        } catch (SQLException e) {
-            System.out.println("Error retrieving single value: " + e.getMessage());
+    public void viewRecords(String sqlQuery, String[] columnHeaders, String[] columnNames, Object... params) {
+        if (columnHeaders.length != columnNames.length) {
+            System.out.println("Error: Mismatch between column headers and column names.");
+            return;
         }
-        return result;
-    }
 
-    //-----------------------------------------------
-    // ADD RECORD AND RETURN GENERATED ID
-    //-----------------------------------------------
-    public int addRecordAndReturnId(String query, Object... params) {
-        int generatedId = -1;
         try (Connection conn = connectDB();
-             PreparedStatement pstmt = conn.prepareStatement(query, PreparedStatement.RETURN_GENERATED_KEYS)) {
+             PreparedStatement pstmt = conn.prepareStatement(sqlQuery)) {
 
-            // Use setObject for flexibility
             for (int i = 0; i < params.length; i++) {
                 pstmt.setObject(i + 1, params[i]);
             }
 
-            int affectedRows = pstmt.executeUpdate();
-            if (affectedRows > 0) {
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if (rs.next()) generatedId = rs.getInt(1);
-                }
+            ResultSet rs = pstmt.executeQuery();
+
+            StringBuilder headerLine = new StringBuilder();
+            headerLine.append("--------------------------------------------------------------------------------\n| ");
+            for (String header : columnHeaders) {
+                headerLine.append(String.format("%-20s | ", header));
             }
+            headerLine.append("\n--------------------------------------------------------------------------------");
+            System.out.println(headerLine.toString());
+
+            while (rs.next()) {
+                StringBuilder row = new StringBuilder("| ");
+                for (String colName : columnNames) {
+                    String value = rs.getString(colName);
+                    row.append(String.format("%-20s | ", value != null ? value : ""));
+                }
+                System.out.println(row.toString());
+            }
+            System.out.println("--------------------------------------------------------------------------------");
 
         } catch (SQLException e) {
-            System.out.println("Error inserting record: " + e.getMessage());
+            System.out.println("Error retrieving records: " + e.getMessage());
         }
-        return generatedId;
     }
 
     //-----------------------------------------------
-    // FETCH RECORDS (Dynamic SELECT)
+    // FETCH RECORDS
     //-----------------------------------------------
     public List<Map<String, Object>> fetchRecords(String sqlQuery, Object... values) {
         List<Map<String, Object>> records = new ArrayList<>();
 
-        try (Connection conn = config.connectDB();
+        try (Connection conn = connectDB();
              PreparedStatement pstmt = conn.prepareStatement(sqlQuery)) {
 
-            // Use setObject for flexibility
             for (int i = 0; i < values.length; i++) {
                 pstmt.setObject(i + 1, values[i]);
             }
@@ -198,7 +184,7 @@ public class config {
     }
 
     //-----------------------------------------------
-    // PASSWORD HASHING (SHA-256)
+    // HASH PASSWORD
     //-----------------------------------------------
     public static String hashPassword(String password) {
         try {
