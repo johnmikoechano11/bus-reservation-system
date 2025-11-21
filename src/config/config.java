@@ -39,6 +39,7 @@ public class config {
             setPreparedStatementValues(pstmt, values);
             pstmt.executeUpdate();
             System.out.println("Record added successfully!");
+
         } catch (SQLException e) {
             System.out.println("Error adding record: " + e.getMessage());
         }
@@ -52,8 +53,13 @@ public class config {
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             setPreparedStatementValues(pstmt, values);
-            pstmt.executeUpdate();
-            System.out.println("Record updated successfully!");
+            int rows = pstmt.executeUpdate();
+
+            if (rows > 0)
+                System.out.println("Record updated successfully!");
+            else
+                System.out.println("ID does not exist!");
+
         } catch (SQLException e) {
             System.out.println("Error updating record: " + e.getMessage());
         }
@@ -67,8 +73,13 @@ public class config {
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             setPreparedStatementValues(pstmt, values);
-            pstmt.executeUpdate();
-            System.out.println("Record deleted successfully!");
+            int rows = pstmt.executeUpdate();
+
+            if (rows > 0)
+                System.out.println("Record deleted successfully!");
+            else
+                System.out.println("ID does not exist!");
+
         } catch (SQLException e) {
             System.out.println("Error deleting record: " + e.getMessage());
         }
@@ -78,6 +89,7 @@ public class config {
     // VIEW RECORDS WITHOUT PARAMETERS
     //-----------------------------------------------
     public void viewRecords(String sqlQuery, String[] columnHeaders, String[] columnNames) {
+
         if (columnHeaders.length != columnNames.length) {
             System.out.println("Error: Mismatch between column headers and column names.");
             return;
@@ -87,23 +99,7 @@ public class config {
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sqlQuery)) {
 
-            StringBuilder headerLine = new StringBuilder();
-            headerLine.append("--------------------------------------------------------------------------------\n| ");
-            for (String header : columnHeaders) {
-                headerLine.append(String.format("%-20s | ", header));
-            }
-            headerLine.append("\n--------------------------------------------------------------------------------");
-            System.out.println(headerLine.toString());
-
-            while (rs.next()) {
-                StringBuilder row = new StringBuilder("| ");
-                for (String colName : columnNames) {
-                    String value = rs.getString(colName);
-                    row.append(String.format("%-20s | ", value != null ? value : ""));
-                }
-                System.out.println(row.toString());
-            }
-            System.out.println("--------------------------------------------------------------------------------");
+            printTable(rs, columnHeaders, columnNames);
 
         } catch (SQLException e) {
             System.out.println("Error retrieving records: " + e.getMessage());
@@ -114,6 +110,7 @@ public class config {
     // VIEW RECORDS WITH PARAMETERS
     //-----------------------------------------------
     public void viewRecords(String sqlQuery, String[] columnHeaders, String[] columnNames, Object... params) {
+
         if (columnHeaders.length != columnNames.length) {
             System.out.println("Error: Mismatch between column headers and column names.");
             return;
@@ -127,24 +124,7 @@ public class config {
             }
 
             ResultSet rs = pstmt.executeQuery();
-
-            StringBuilder headerLine = new StringBuilder();
-            headerLine.append("--------------------------------------------------------------------------------\n| ");
-            for (String header : columnHeaders) {
-                headerLine.append(String.format("%-20s | ", header));
-            }
-            headerLine.append("\n--------------------------------------------------------------------------------");
-            System.out.println(headerLine.toString());
-
-            while (rs.next()) {
-                StringBuilder row = new StringBuilder("| ");
-                for (String colName : columnNames) {
-                    String value = rs.getString(colName);
-                    row.append(String.format("%-20s | ", value != null ? value : ""));
-                }
-                System.out.println(row.toString());
-            }
-            System.out.println("--------------------------------------------------------------------------------");
+            printTable(rs, columnHeaders, columnNames);
 
         } catch (SQLException e) {
             System.out.println("Error retrieving records: " + e.getMessage());
@@ -152,7 +132,32 @@ public class config {
     }
 
     //-----------------------------------------------
-    // FETCH RECORDS
+    // PRINT TABLE UTILITY
+    //-----------------------------------------------
+    private void printTable(ResultSet rs, String[] headers, String[] columns) throws SQLException {
+
+        System.out.println("--------------------------------------------------------------------------------");
+        System.out.print("| ");
+
+        for (String h : headers) {
+            System.out.printf("%-20s | ", h);
+        }
+        System.out.println("\n--------------------------------------------------------------------------------");
+
+        while (rs.next()) {
+            System.out.print("| ");
+            for (String col : columns) {
+                String value = rs.getString(col);
+                System.out.printf("%-20s | ", value != null ? value : "");
+            }
+            System.out.println();
+        }
+
+        System.out.println("--------------------------------------------------------------------------------");
+    }
+
+    //-----------------------------------------------
+    // FETCH RECORDS INTO LIST<MAP>
     //-----------------------------------------------
     public List<Map<String, Object>> fetchRecords(String sqlQuery, Object... values) {
         List<Map<String, Object>> records = new ArrayList<>();
@@ -165,13 +170,13 @@ public class config {
             }
 
             ResultSet rs = pstmt.executeQuery();
-            ResultSetMetaData metaData = rs.getMetaData();
-            int columnCount = metaData.getColumnCount();
+            ResultSetMetaData meta = rs.getMetaData();
+            int count = meta.getColumnCount();
 
             while (rs.next()) {
                 Map<String, Object> row = new HashMap<>();
-                for (int i = 1; i <= columnCount; i++) {
-                    row.put(metaData.getColumnName(i), rs.getObject(i));
+                for (int i = 1; i <= count; i++) {
+                    row.put(meta.getColumnName(i), rs.getObject(i));
                 }
                 records.add(row);
             }
@@ -189,16 +194,17 @@ public class config {
     public static String hashPassword(String password) {
         try {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hashedBytes = md.digest(password.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            byte[] hashed = md.digest(password.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hashedBytes) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hashed) {
+                String h = Integer.toHexString(0xff & b);
+                if (h.length() == 1) hex.append('0');
+                hex.append(h);
             }
-            return hexString.toString();
-        } catch (java.security.NoSuchAlgorithmException e) {
+            return hex.toString();
+
+        } catch (Exception e) {
             System.out.println("Error hashing password: " + e.getMessage());
             return null;
         }

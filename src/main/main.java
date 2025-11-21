@@ -35,10 +35,16 @@ public class main {
                     case 2:
                         Map<String, Object> user = login(sc, db);
                         if (user != null) {
-                            if ("admin".equals(user.get("user_type"))) {
+                            // Safely extract user_type and id/name with fallbacks
+                            String userType = getStringFromMap(user, "user_type", "type");
+                            String userName = getStringFromMap(user, "name", "username");
+                            int userId = getIntFromMap(user, "user_id", "id");
+
+                            if ("admin".equalsIgnoreCase(userType)) {
                                 adminMenu(sc, db);
                             } else {
-                                passengerMenu(sc, db, (int) user.get("user_id"));
+                                // pass safe values to passengerMenu
+                                passengerMenu(sc, db, userId, userName);
                             }
                         }
                         break;
@@ -57,7 +63,7 @@ public class main {
     }
 
     // ============================
-    // REGISTER
+    // REGISTER (No pending approval)
     // ============================
     private static void register(Scanner sc, config db) {
         System.out.println("\n--- REGISTER ---");
@@ -93,16 +99,17 @@ public class main {
         String type = sc.nextLine().trim();
         if (type.isEmpty()) type = "passenger";
 
+        // Automatically active
         db.addRecord(
             "INSERT INTO users(name, email, password, user_type, status) VALUES(?,?,?,?,?)",
             name, email, hashed, type, "active"
         );
 
-        System.out.println("Registration complete as " + type + "!");
+        System.out.println("Registration successful! You can now login.");
     }
 
     // ============================
-    // LOGIN
+    // LOGIN (removed status check, robust)
     // ============================
     private static Map<String, Object> login(Scanner sc, config db) {
 
@@ -115,22 +122,30 @@ public class main {
         String pass = sc.nextLine().trim();
         String hashed = config.hashPassword(pass);
 
-        String sql = "SELECT * FROM users WHERE email = ? AND password = ? AND status = 'active'";
+        String sql = "SELECT * FROM users WHERE email = ? AND password = ?";
         List<Map<String, Object>> result = db.fetchRecords(sql, email, hashed);
 
         if (result != null && !result.isEmpty()) {
             Map<String, Object> user = result.get(0);
-            System.out.println("\n✅ Welcome, " + user.get("name") +
-                    " (" + user.get("user_type") + ")");
+
+            // Safe extraction with fallbacks
+            String name = getStringFromMap(user, "name", "username");
+            String utype = getStringFromMap(user, "user_type", "type");
+
+            // Display friendly defaults if any are missing
+            if (name == null || name.isEmpty()) name = "(No name)";
+            if (utype == null || utype.isEmpty()) utype = "passenger";
+
+            System.out.println("\n✅ Welcome, " + name + " (" + utype + ")");
             return user;
         } else {
-            System.out.println("❌ Invalid credentials.");
+            System.out.println("❌ Invalid email or password.");
             return null;
         }
     }
 
     // ============================
-    // ADMIN MENU
+    // ADMIN MENU (Approve removed)
     // ============================
     private static void adminMenu(Scanner sc, config db) {
         int opt = -1;
@@ -164,9 +179,15 @@ public class main {
     }
 
     // ============================
-    // PASSENGER MENU
+    // PASSENGER MENU (SAFE)
     // ============================
-    private static void passengerMenu(Scanner sc, config db, int userId) {
+    private static void passengerMenu(Scanner sc, config db, int userId, String passengerName) {
+        // ensure defaults
+        if (passengerName == null || passengerName.trim().isEmpty()) passengerName = "Passenger";
+        if (userId <= 0) {
+            System.out.println("Warning: user id not available. Some features may not work properly.");
+        }
+
         int opt = -1;
         do {
             System.out.println("\n=== PASSENGER MENU ===");
@@ -197,28 +218,58 @@ public class main {
                     break;
 
                 case 3:
+                    // Book Ticket - safe flow
                     System.out.print("Seat Number: ");
                     String seat = sc.nextLine().trim();
+
+                    System.out.print("Bus ID: ");
+                    int busId = -1;
+                    try {
+                        busId = Integer.parseInt(sc.nextLine().trim());
+                    } catch (Exception e) {
+                        System.out.println("Invalid Bus ID.");
+                        break;
+                    }
+
+                    List<Map<String,Object>> busData =
+                        db.fetchRecords("SELECT bus_number FROM bus WHERE bus_id=?", busId);
+
+                    if (busData == null || busData.isEmpty()) {
+                        System.out.println("❌ Bus ID does not exist!");
+                        break;
+                    }
+
+                    String busNumber = getStringFromMap(busData.get(0), "bus_number", "busno");
+                    if (busNumber == null) busNumber = "";
+
                     System.out.print("Route: ");
                     String route = sc.nextLine().trim();
                     System.out.print("Date Booked (YYYY-MM-DD): ");
                     String dbook = sc.nextLine().trim();
 
                     db.addRecord(
-                        "INSERT INTO ticket(user_id, seat_number, route, date_booked) VALUES(?,?,?,?)",
-                        userId, seat, route, dbook
+                        "INSERT INTO ticket(user_id, passenger_name, bus_id, bus_number, seat_number, route, date_booked) VALUES(?,?,?,?,?,?,?)",
+                        userId, passengerName, busId, busNumber, seat, route, dbook
                     );
                     System.out.println("✅ Ticket booked!");
                     break;
 
                 case 4:
-                    db.viewRecords("SELECT * FROM ticket WHERE user_id=?",
-                        new String[]{"Ticket ID","Seat","Route","Booked"},
-                        new String[]{"ticket_id","seat_number","route","date_booked"}, userId);
+                    if (userId <= 0) {
+                        System.out.println("Cannot show tickets: user ID unknown.");
+                        break;
+                    }
+                    db.viewRecords(
+                        "SELECT ticket_id, passenger_name, bus_number, seat_number, route, date_booked FROM ticket WHERE user_id=?",
+                        new String[]{"Ticket ID","Passenger Name","Bus Number","Seat","Route","Date Booked"},
+                        new String[]{"ticket_id","passenger_name","bus_number","seat_number","route","date_booked"},
+                        userId
+                    );
                     break;
 
                 case 0:
                     System.out.println("Logged out."); break;
+
                 default:
                     System.out.println("Invalid option."); break;
             }
@@ -291,7 +342,7 @@ public class main {
     }
 
     // ============================
-    // PASSENGER CRUD (with ID check)
+    // PASSENGER CRUD
     // ============================
     private static void managePassenger(Scanner sc, config db) {
         int ch = -1;
@@ -366,7 +417,8 @@ public class main {
                     System.out.print("Arrival: "); String arr = sc.nextLine().trim();
                     System.out.print("Route: "); String rt = sc.nextLine().trim();
 
-                    db.addRecord("INSERT INTO schedule(bus_id, departure, arrival, route) VALUES(?,?,?,?)", bid, dep, arr, rt);
+                    db.addRecord("INSERT INTO schedule(bus_id, departure, arrival, route) VALUES(?,?,?,?)",
+                        bid, dep, arr, rt);
                     break;
 
                 case 2:
@@ -405,7 +457,7 @@ public class main {
     }
 
     // ============================
-    // TICKET CRUD
+    // TICKET CRUD (ADMIN)
     // ============================
     private static void manageTicket(Scanner sc, config db) {
         int ch=-1;
@@ -423,17 +475,34 @@ public class main {
             switch(ch) {
                 case 1:
                     System.out.print("User ID: "); int uid = Integer.parseInt(sc.nextLine().trim());
+                    System.out.print("Passenger Name: "); String pname = sc.nextLine().trim();
+                    System.out.print("Bus ID: "); int bid = Integer.parseInt(sc.nextLine().trim());
+
+                    List<Map<String,Object>> busData =
+                            db.fetchRecords("SELECT bus_number FROM bus WHERE bus_id=?", bid);
+
+                    if(busData.isEmpty()){
+                        System.out.println("❌ Bus ID does not exist!");
+                        break;
+                    }
+
+                    String busNumber = (String) busData.get(0).get("bus_number");
+
                     System.out.print("Seat Number: "); String seat = sc.nextLine().trim();
                     System.out.print("Route: "); String route = sc.nextLine().trim();
                     System.out.print("Date Booked (YYYY-MM-DD): "); String dbook = sc.nextLine().trim();
-                    db.addRecord("INSERT INTO ticket(user_id, seat_number, route, date_booked) VALUES(?,?,?,?)", uid, seat, route, dbook);
+
+                    db.addRecord("INSERT INTO ticket(user_id, passenger_name, bus_id, bus_number, seat_number, route, date_booked) VALUES(?,?,?,?,?,?,?)",
+                        uid, pname, bid, busNumber, seat, route, dbook);
                     System.out.println("✅ Ticket booked!");
                     break;
 
                 case 2:
-                    db.viewRecords("SELECT * FROM ticket",
-                        new String[]{"Ticket ID","User ID","Seat","Route","Date Booked"},
-                        new String[]{"ticket_id","user_id","seat_number","route","date_booked"});
+                    db.viewRecords(
+                        "SELECT ticket_id, passenger_name, bus_number, seat_number, route, date_booked FROM ticket",
+                        new String[]{"Ticket ID","Passenger Name","Bus Number","Seat","Route","Date Booked"},
+                        new String[]{"ticket_id","passenger_name","bus_number","seat_number","route","date_booked"}
+                    );
                     break;
 
                 case 3:
@@ -441,12 +510,12 @@ public class main {
                     List<Map<String,Object>> existing = db.fetchRecords("SELECT * FROM ticket WHERE ticket_id=?", tid);
                     if(existing.isEmpty()){ System.out.println("❌ Ticket ID does not exist!"); break; }
 
-                    System.out.print("New Seat Number: "); String ns = sc.nextLine().trim();
-                    System.out.print("New Route: "); String nr = sc.nextLine().trim();
-                    System.out.print("New Date Booked (YYYY-MM-DD): "); String nd = sc.nextLine().trim();
+                    System.out.print("New Seat Number: "); String nseat = sc.nextLine().trim();
+                    System.out.print("New Route: "); String nroute = sc.nextLine().trim();
+                    System.out.print("New Date Booked: "); String ndbook = sc.nextLine().trim();
 
-                    db.updateRecord("UPDATE ticket SET seat_number=?, route=?, date_booked=? WHERE ticket_id=?", ns, nr, nd, tid);
-                    System.out.println("✅ Ticket updated!");
+                    db.updateRecord("UPDATE ticket SET seat_number=?, route=?, date_booked=? WHERE ticket_id=?",
+                        nseat, nroute, ndbook, tid);
                     break;
 
                 case 4:
@@ -455,7 +524,6 @@ public class main {
                     if(existing.isEmpty()){ System.out.println("❌ Ticket ID does not exist!"); break; }
 
                     db.deleteRecord("DELETE FROM ticket WHERE ticket_id=?", dt);
-                    System.out.println("✅ Ticket deleted!");
                     break;
 
                 case 0: break;
@@ -469,10 +537,42 @@ public class main {
     // VIEW USERS
     // ============================
     private static void viewUsers(config db) {
-        db.viewRecords(
-            "SELECT user_id, name, email, user_type, status FROM users",
-            new String[]{"User ID", "Name", "Email", "Type", "Status"},
-            new String[]{"user_id","name","email","user_type","status"}
-        );
+        db.viewRecords("SELECT user_id, name, email, user_type, status FROM users",
+            new String[]{"User ID","Name","Email","Type","Status"},
+            new String[]{"user_id","name","email","user_type","status"});
+    }
+
+    // ============================
+    // Helper: Safe getters for Map results
+    // ============================
+    private static String getStringFromMap(Map<String, Object> m, String primaryKey, String secondaryKey) {
+        try {
+            Object v = m.get(primaryKey);
+            if (v != null) return v.toString();
+            v = m.get(secondaryKey);
+            if (v != null) return v.toString();
+            // try lowercase versions (some DB drivers return lowercase column names)
+            v = m.get(primaryKey.toLowerCase());
+            if (v != null) return v.toString();
+            v = m.get(secondaryKey.toLowerCase());
+            if (v != null) return v.toString();
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static int getIntFromMap(Map<String, Object> m, String primaryKey, String secondaryKey) {
+        try {
+            Object v = m.get(primaryKey);
+            if (v == null) v = m.get(secondaryKey);
+            if (v == null) v = m.get(primaryKey.toLowerCase());
+            if (v == null) v = m.get(secondaryKey.toLowerCase());
+            if (v == null) return -1;
+            // handle Integer, Long, String
+            if (v instanceof Integer) return (Integer) v;
+            if (v instanceof Long) return ((Long) v).intValue();
+            return Integer.parseInt(v.toString());
+        } catch (Exception e) {
+            return -1;
+        }
     }
 }
